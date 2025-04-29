@@ -3,194 +3,29 @@
 <head>
   <meta charset="UTF-8">
   <title>Proxy 24</title>
-  <style>
-    :root {
-      --primary-color: #4a6cf7;
-      --success-color: #28a745;
-      --danger-color: #dc3545;
-      --warning-color: #ffc107;
-      --light-bg: #f8f9fa;
-      --dark-text: #343a40;
-      --border-radius: 6px;
-      --box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    }
-    
-    body {
-      width: 300px;
-      padding: 10px;
-      font-family: 'Segoe UI', Arial, sans-serif;
-      background-color: #ffffff;
-      color: var(--dark-text);
-      margin: 0;
-    }
-    
-    h2 {
-      color: var(--primary-color);
-      margin-top: 0;
-      margin-bottom: 8px;
-      padding-bottom: 5px;
-      border-bottom: 1px solid #eee;
-      font-size: 18px;
-    }
-    
-    .title-container {
-      display: flex;
-      align-items: baseline;
-      border-bottom: 1px solid #eee;
-      padding-bottom: 5px;
-      margin-bottom: 8px;
-    }
-    
-    .title-container h2 {
-      margin: 0;
-      padding: 0;
-      border: none;
-    }
-    
-    .subtitle {
-      font-size: 12px;
-      color: #6c757d;
-      margin-left: 8px;
-      font-weight: normal;
-    }
-    
-    h3 {
-      margin-top: 10px;
-      margin-bottom: 5px;
-      font-size: 14px;
-      color: var(--dark-text);
-    }
-    
-    .form-group {
-      margin-bottom: 8px;
-    }
-    
-    label {
-      display: block;
-      margin-bottom: 3px;
-      font-weight: 500;
-      font-size: 13px;
-    }
-    
-    select, input, button {
-      width: 100%;
-      padding: 6px 8px;
-      border-radius: var(--border-radius);
-      border: 1px solid #ced4da;
-      box-sizing: border-box;
-      font-size: 13px;
-      transition: border-color 0.2s, box-shadow 0.2s;
-    }
-    
-    select:focus, input:focus {
-      outline: none;
-      border-color: var(--primary-color);
-      box-shadow: 0 0 0 2px rgba(74, 108, 247, 0.25);
-    }
-    
-    button {
-      cursor: pointer;
-      font-weight: 500;
-      margin-top: 3px;
-      border: none;
-      transition: background-color 0.2s, transform 0.1s;
-    }
-    
-    button:active {
-      transform: translateY(1px);
-    }
-    
-    .btn-success {
-      background-color: var(--success-color);
-      color: white;
-    }
-    
-    .btn-success:hover {
-      background-color: #218838;
-    }
-    
-    .btn-danger {
-      background-color: var(--danger-color);
-      color: white;
-    }
-    
-    .btn-danger:hover {
-      background-color: #c82333;
-    }
-    
-    .btn-warning {
-      background-color: var(--warning-color);
-      color: black;
-    }
-    
-    .btn-warning:hover {
-      background-color: #e0a800;
-    }
-    
-    .btn-primary {
-      background-color: var(--primary-color);
-      color: white;
-    }
-    
-    .btn-primary:hover {
-      background-color: #3a5bd9;
-    }
-    
-    .proxy-controls {
-      display: flex;
-      gap: 5px;
-    }
-    
-    .proxy-controls button {
-      flex: 1;
-    }
-    
-    #status-indicator {
-      margin-top: 8px;
-      padding: 6px;
-      border-radius: var(--border-radius);
-      text-align: center;
-      font-weight: 500;
-      font-size: 13px;
-      box-shadow: var(--box-shadow);
-    }
-    
-    .card {
-      background-color: var(--light-bg);
-      border-radius: var(--border-radius);
-      padding: 10px;
-      margin-top: 8px;
-      box-shadow: var(--box-shadow);
-    }
-    
-    .divider {
-      height: 1px;
-      background-color: #eee;
-      margin: 8px 0;
-    }
-    
-    .compact-input {
-      display: flex;
-      gap: 5px;
-    }
-    
-    .compact-input .form-group {
-      flex: 1;
-    }
-  </style>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- 添加消息容器 -->
+  <div id="message-container" class="message-container"></div>
+  
   <div class="title-container">
     <h2>Proxy 24</h2>
     <span class="subtitle">by 24</span>
   </div>
   
-  <form id="proxy-form">
+  <!-- 选项卡导航 -->
+  <div class="tabs">
+    <div class="tab active" data-tab="proxy">代理设置</div>
+    <div class="tab" data-tab="add-proxy">添加代理</div>
+    <div class="tab" data-tab="whitelist">白名单</div>
+  </div>
+  
+  <!-- 代理设置选项卡内容 -->
+  <div id="proxy-tab" class="tab-content active">
     <div class="card">
-      <div class="form-group">
-        <label for="proxy-select">选择代理:</label>
-        <select id="proxy-select"></select>
-      </div>
+      <label for="proxy-select">选择代理:</label>
+      <select id="proxy-select"></select>
       
       <div class="proxy-controls">
         <button id="toggle-proxy" type="button" class="btn-success">启用代理</button>
@@ -199,7 +34,10 @@
       
       <div id="status-indicator"></div>
     </div>
-    
+  </div>
+  
+  <!-- 添加代理选项卡内容 -->
+  <div id="add-proxy-tab" class="tab-content">
     <div class="card">
       <h3>添加新代理</h3>
       <div class="form-group">
@@ -212,21 +50,69 @@
         </select>
       </div>
       
-      <div class="compact-input">
+      <div class="host-port-container">
         <div class="form-group">
           <label for="proxy-host">主机:</label>
-          <input type="text" id="proxy-host" placeholder="例如: 127.0.0.1">
+          <input type="text" id="proxy-host" placeholder="💥127.0.0.1">
         </div>
         
         <div class="form-group">
           <label for="proxy-port">端口:</label>
-          <input type="number" id="proxy-port" placeholder="例如: 8080">
+          <input type="number" id="proxy-port" placeholder="💥8080">
+        </div>
+      </div>
+      
+      <div class="auth-container">
+        <div class="form-group">
+          <label for="proxy-username">用户名:</label>
+          <input type="text" id="proxy-username" placeholder="🔒username">
+        </div>
+        
+        <div class="form-group">
+          <label for="proxy-password">密码:</label>
+          <input type="password" id="proxy-password" placeholder="🔒password">
         </div>
       </div>
       
       <button id="add-proxy" type="button" class="btn-primary">添加代理</button>
     </div>
-  </form>
+  </div>
+  
+  <!-- 白名单选项卡内容 -->
+  <div id="whitelist-tab" class="tab-content">
+    <div class="card">
+      <h3>白名单管理</h3>
+      <p class="help-text">添加到白名单的域名将直接连接，不通过代理</p>
+      
+      <!-- 删除这部分
+      <div class="form-group">
+        <label for="whitelist-domain">域名:</label>
+        <input type="text" id="whitelist-domain" placeholder="例如: example.com">
+      </div>
+      
+      <button id="add-whitelist" type="button" class="btn-primary">添加到白名单</button>
+      
+      <div class="divider"></div>
+      -->
+      
+      <div class="form-group">
+        <textarea id="batch-whitelist" placeholder="多个域名请用换行分隔"></textarea>
+      </div>
+      
+      <button id="batch-add-whitelist" type="button" class="btn-primary">添加到白名单</button>
+      
+      <div class="divider"></div>
+      
+      <div class="form-group">
+        <select id="whitelist-items" size="5"></select>
+      </div>
+      
+      <div class="whitelist-controls">
+        <button id="remove-whitelist" type="button" class="btn-warning">移除选中</button>
+        <button id="clear-whitelist" type="button" class="btn-danger">清空白名单</button>
+      </div>
+    </div>
+  </div>
   
   <script src="popup.js"></script>
 </body>

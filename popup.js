@@ -6,171 +6,441 @@ document.addEventListener('DOMContentLoaded', function() {
   const proxyTypeInput = document.getElementById('proxy-type');
   const proxyHostInput = document.getElementById('proxy-host');
   const proxyPortInput = document.getElementById('proxy-port');
-  const statusIndicator = document.createElement('div');
+  const proxyUsernameInput = document.getElementById('proxy-username');
+  const proxyPasswordInput = document.getElementById('proxy-password');
+  const statusIndicator = document.getElementById('status-indicator');
   
-  // 添加状态指示器
-  statusIndicator.id = 'status-indicator';
-  document.querySelector('form').appendChild(statusIndicator);
-
-  // 加载代理并填充下拉菜单
-  function loadProxies() {
-    proxySelect.innerHTML = ''; // 清空现有选项
-    
-    chrome.storage.sync.get(['proxies', 'currentProxy', 'isProxyEnabled'], function(data) {
-      if (data.proxies && data.proxies.length > 0) {
-        data.proxies.forEach((proxy, index) => {
-          const option = document.createElement('option');
-          option.value = index;
-          option.textContent = `${proxy.type} - ${proxy.host}:${proxy.port}`;
-          proxySelect.appendChild(option);
-        });
-        proxySelect.value = data.currentProxy || 0;
-        proxySelect.disabled = false;
-        toggleButton.disabled = false;
-        deleteProxyButton.disabled = false;
-        
-        // 更新按钮文本和状态指示器
-        updateUI(data.isProxyEnabled);
-      } else {
-        proxySelect.disabled = true;
-        toggleButton.disabled = true;
-        deleteProxyButton.disabled = true;
-        statusIndicator.textContent = '没有可用的代理配置';
-        statusIndicator.style.backgroundColor = '#ffcccc';
-      }
+  // 白名单相关元素
+  // 删除这两行
+  // const whitelistDomainInput = document.getElementById('whitelist-domain');
+  // const addWhitelistButton = document.getElementById('add-whitelist');
+  const whitelistItemsSelect = document.getElementById('whitelist-items');
+  const removeWhitelistButton = document.getElementById('remove-whitelist');
+  const batchWhitelistInput = document.getElementById('batch-whitelist');
+  const batchAddWhitelistButton = document.getElementById('batch-add-whitelist');
+  const clearWhitelistButton = document.getElementById('clear-whitelist');
+  
+  // 选项卡切换功能
+  const tabs = document.querySelectorAll('.tab');
+  const tabContents = document.querySelectorAll('.tab-content');
+  
+  tabs.forEach(tab => {
+    tab.addEventListener('click', function() {
+      // 移除所有选项卡的活动状态
+      tabs.forEach(t => t.classList.remove('active'));
+      tabContents.forEach(content => content.classList.remove('active'));
+      
+      // 添加当前选项卡的活动状态
+      this.classList.add('active');
+      const tabId = this.getAttribute('data-tab');
+      document.getElementById(`${tabId}-tab`).classList.add('active');
     });
-  }
+  });
   
-  // 更新UI状态
-  function updateUI(isEnabled) {
-    toggleButton.textContent = isEnabled ? '禁用代理' : '启用代理';
-    toggleButton.className = isEnabled ? 'btn-danger' : 'btn-success';
-    statusIndicator.textContent = isEnabled ? '代理已启用' : '代理已禁用';
-    statusIndicator.style.backgroundColor = isEnabled ? '#d4edda' : '#f8d7da';
-    statusIndicator.style.color = isEnabled ? '#155724' : '#721c24';
-  }
-  
-  // 初始加载
+  // 加载代理列表
   loadProxies();
   
-  // 向background.js发送消息以获取当前代理状态
-  chrome.runtime.sendMessage({action: 'getProxyState'}, function(response) {
-    if (response) {
-      updateUI(response.isEnabled);
-    }
-  });
-
-  // 切换代理开关
-  toggleButton.addEventListener('click', () => {
-    chrome.storage.sync.get(['proxies', 'isProxyEnabled', 'currentProxy'], function(data) {
-      const newState = !data.isProxyEnabled;
-      const selectedProxy = data.proxies[parseInt(proxySelect.value)];
-      
-      chrome.runtime.sendMessage({
-        action: 'toggleProxy',
-        enable: newState,
-        proxyConfig: selectedProxy
-      }, function(response) {
-        if (response && response.success) {
-          updateUI(newState);
-        }
-      });
-    });
-  });
-
-  // 更改当前代理
-  proxySelect.addEventListener('change', () => {
-    const newProxyIndex = parseInt(proxySelect.value);
-    chrome.storage.sync.set({ currentProxy: newProxyIndex }, function() {
-      console.log('当前代理已更改为:', newProxyIndex);
-      
-      // 如果代理已启用，则立即应用新的代理设置
-      chrome.storage.sync.get(['isProxyEnabled', 'proxies'], function(data) {
-        if (data.isProxyEnabled) {
-          const selectedProxy = data.proxies[newProxyIndex];
-          chrome.runtime.sendMessage({
-            action: 'toggleProxy',
-            enable: true,
-            proxyConfig: selectedProxy
-          });
-        }
-      });
-    });
-  });
-
-  // 添加新代理
-  addProxyButton.addEventListener('click', () => {
-    const type = proxyTypeInput.value.trim();
-    const host = proxyHostInput.value.trim();
-    const port = parseInt(proxyPortInput.value);
-
-    if (type && host && !isNaN(port)) {
-      chrome.storage.sync.get(['proxies'], function(data) {
-        const newProxies = [...(data.proxies || []), { type, host, port }];
-        chrome.storage.sync.set({ proxies: newProxies }, function() {
-          console.log('新代理已添加:', { type, host, port });
-
-          // 清空输入字段
-          proxyTypeInput.value = '';
-          proxyHostInput.value = '';
-          proxyPortInput.value = '';
-          
-          // 重新加载代理列表
-          loadProxies();
-        });
-      });
-    } else {
-      alert('请正确填写所有字段。');
-    }
-  });
+  // 加载白名单
+  loadWhitelist();
   
-  // 删除当前选中的代理
-  deleteProxyButton.addEventListener('click', () => {
-    const selectedIndex = parseInt(proxySelect.value);
+  // 添加新代理
+  addProxyButton.addEventListener('click', function() {
+    const type = proxyTypeInput.value;
+    const host = proxyHostInput.value.trim();
+    const port = proxyPortInput.value.trim();
+    const username = proxyUsernameInput.value.trim();
+    const password = proxyPasswordInput.value.trim();
     
-    chrome.storage.sync.get(['proxies', 'currentProxy', 'isProxyEnabled'], function(data) {
-      if (!data.proxies || data.proxies.length === 0) {
-        return;
-      }
+    if (!host || !port) {
+      showMessage('请输入代理主机和端口', 'error');
+      return;
+    }
+    
+    chrome.storage.sync.get(['proxies'], function(data) {
+      const proxies = data.proxies || [];
       
-      // 如果当前正在使用要删除的代理，先禁用代理
-      if (data.isProxyEnabled && data.currentProxy === selectedIndex) {
-        chrome.runtime.sendMessage({
-          action: 'toggleProxy',
-          enable: false
-        });
-      }
+      // 添加新代理
+      proxies.push({
+        type: type,
+        host: host,
+        port: port,
+        username: username,
+        password: password
+      });
       
-      // 删除选中的代理
-      const newProxies = data.proxies.filter((_, index) => index !== selectedIndex);
-      
-      // 更新当前代理索引
-      let newCurrentProxy = data.currentProxy;
-      if (selectedIndex === data.currentProxy) {
-        newCurrentProxy = newProxies.length > 0 ? 0 : -1;
-      } else if (selectedIndex < data.currentProxy) {
-        newCurrentProxy--;
-      }
-      
-      // 保存更新后的代理列表和当前代理索引
-      chrome.storage.sync.set({ 
-        proxies: newProxies,
-        currentProxy: newCurrentProxy
-      }, function() {
-        console.log('代理已删除，索引:', selectedIndex);
+      chrome.storage.sync.set({proxies: proxies}, function() {
+        // 清空输入框
+        proxyHostInput.value = '';
+        proxyPortInput.value = '';
+        proxyUsernameInput.value = '';
+        proxyPasswordInput.value = '';
         
         // 重新加载代理列表
         loadProxies();
         
-        // 如果之前代理是启用状态，并且还有其他代理可用，则启用新的当前代理
-        if (data.isProxyEnabled && newProxies.length > 0 && newCurrentProxy >= 0) {
-          chrome.runtime.sendMessage({
-            action: 'toggleProxy',
-            enable: true,
-            proxyConfig: newProxies[newCurrentProxy]
+        // 选择新添加的代理
+        setTimeout(function() {
+          proxySelect.selectedIndex = proxies.length - 1;
+          proxySelect.dispatchEvent(new Event('change'));
+        }, 100);
+        
+        // 添加成功后切换到代理设置选项卡
+        document.querySelector('.tab[data-tab="proxy"]').click();
+      });
+    });
+  });
+  
+  // 删除当前选中的代理
+  deleteProxyButton.addEventListener('click', function() {
+    const selectedIndex = proxySelect.selectedIndex;
+    
+    if (selectedIndex === -1) {
+      showMessage('请选择要删除的代理', 'warning');
+      return;
+    }
+    
+    chrome.storage.sync.get(['proxies', 'currentProxy', 'isProxyEnabled'], function(data) {
+      const proxies = data.proxies || [];
+      
+      // 删除选中的代理
+      proxies.splice(selectedIndex, 1);
+      
+      // 更新存储
+      const updates = {proxies: proxies};
+      
+      // 如果删除的是当前使用的代理，则禁用代理
+      if (data.isProxyEnabled && data.currentProxy === selectedIndex) {
+        updates.isProxyEnabled = false;
+        
+        // 设置为直连模式
+        chrome.proxy.settings.set({
+          value: {mode: 'direct'},
+          scope: 'regular'
+        });
+      }
+      
+      // 如果当前选中的代理索引大于删除的代理索引，则减少当前代理索引
+      if (data.currentProxy > selectedIndex) {
+        updates.currentProxy = data.currentProxy - 1;
+      }
+      
+      chrome.storage.sync.set(updates, function() {
+        // 重新加载代理列表
+        loadProxies();
+        
+        // 更新状态指示器
+        updateStatusIndicator(false);
+      });
+    });
+  });
+  
+  // 切换代理状态
+  toggleButton.addEventListener('click', function() {
+    const selectedIndex = proxySelect.selectedIndex;
+    
+    if (selectedIndex === -1) {
+      showMessage('请选择要使用的代理', 'warning');
+      return;
+    }
+    
+    chrome.storage.sync.get(['proxies', 'isProxyEnabled'], function(data) {
+      const proxies = data.proxies || [];
+      const currentProxy = proxies[selectedIndex];
+      const newState = !data.isProxyEnabled;
+      
+      // 发送消息到background.js以更新代理设置
+      chrome.runtime.sendMessage({
+        action: 'toggleProxy',
+        enable: newState,
+        proxyConfig: {
+          type: currentProxy.type,
+          host: currentProxy.host,
+          port: currentProxy.port,
+          username: currentProxy.username,
+          password: currentProxy.password
+        }
+      }, function(response) {
+        if (response && response.success) {
+          // 更新存储
+          chrome.storage.sync.set({
+            isProxyEnabled: newState,
+            currentProxy: selectedIndex
+          }, function() {
+            // 更新状态指示器
+            updateStatusIndicator(newState);
+            
+            // 更新按钮文本
+            toggleButton.textContent = newState ? '禁用代理' : '启用代理';
+            toggleButton.className = newState ? 'btn-danger' : 'btn-success';
           });
         }
       });
     });
   });
+  
+  // 代理选择变化时
+  proxySelect.addEventListener('change', function() {
+    const selectedIndex = proxySelect.selectedIndex;
+    
+    if (selectedIndex === -1) {
+      return;
+    }
+    
+    chrome.storage.sync.get(['isProxyEnabled', 'currentProxy'], function(data) {
+      // 如果当前有代理启用，且选择了不同的代理，则更新按钮状态
+      if (data.isProxyEnabled && data.currentProxy === selectedIndex) {
+        toggleButton.textContent = '禁用代理';
+        toggleButton.className = 'btn-danger';
+      } else {
+        toggleButton.textContent = '启用代理';
+        toggleButton.className = 'btn-success';
+      }
+    });
+  });
+  
+  // 添加白名单域名
+  // 删除这个事件监听器
+  // addWhitelistButton.addEventListener('click', function() {
+  //   const domain = whitelistDomainInput.value.trim();
+  //   if (!domain) {
+  //     alert('请输入有效的域名');
+  //     return;
+  //   }
+  //   
+  //   chrome.runtime.sendMessage(
+  //     { action: 'addToWhitelist', domain: domain },
+  //     function(response) {
+  //       if (response && response.success) {
+  //         whitelistDomainInput.value = '';
+  //         loadWhitelist();
+  //       } else {
+  //         alert(response && response.message ? response.message : '添加失败');
+  //       }
+  //     }
+  //   );
+  // });
+  
+  // 移除白名单域名
+  removeWhitelistButton.addEventListener('click', function() {
+    const selectedIndex = whitelistItemsSelect.selectedIndex;
+    if (selectedIndex === -1) {
+      showMessage('请选择要移除的域名', 'warning');
+      return;
+    }
+    
+    const domain = whitelistItemsSelect.options[selectedIndex].value;
+    chrome.runtime.sendMessage(
+      { action: 'removeFromWhitelist', domain: domain },
+      function(response) {
+        if (response && response.success) {
+          loadWhitelist();
+          showMessage('域名已成功移除', 'success');
+        } else {
+          showMessage('移除失败', 'error');
+        }
+      }
+    );
+  });
+  
+  // 加载代理列表
+  function loadProxies() {
+    chrome.storage.sync.get(['proxies', 'currentProxy', 'isProxyEnabled'], function(data) {
+      const proxies = data.proxies || [];
+      
+      // 清空选择框
+      proxySelect.innerHTML = '';
+      
+      // 添加代理到选择框
+      proxies.forEach(function(proxy, index) {
+        const option = document.createElement('option');
+        option.value = index;
+        // 添加认证标志
+        const authBadge = (proxy.username && proxy.password) ? ' 🔒' : '';
+        option.textContent = `${proxy.type.toUpperCase()} - ${proxy.host}:${proxy.port}${authBadge}`;
+        proxySelect.appendChild(option);
+      });
+      
+      // 如果没有代理，禁用相关按钮
+      if (proxies.length === 0) {
+        toggleButton.disabled = true;
+        deleteProxyButton.disabled = true;
+        
+        // 添加提示选项
+        const option = document.createElement('option');
+        option.disabled = true;
+        option.textContent = '没有可用的代理';
+        proxySelect.appendChild(option);
+        
+        // 更新状态指示器
+        updateStatusIndicator(false);
+      } else {
+        toggleButton.disabled = false;
+        deleteProxyButton.disabled = false;
+        
+        // 选择当前代理
+        if (data.isProxyEnabled && data.currentProxy !== undefined) {
+          proxySelect.selectedIndex = data.currentProxy;
+          
+          // 更新按钮文本
+          toggleButton.textContent = '禁用代理';
+          toggleButton.className = 'btn-danger';
+          
+          // 更新状态指示器
+          updateStatusIndicator(true);
+        } else {
+          // 默认选择第一个代理
+          proxySelect.selectedIndex = 0;
+          
+          // 更新按钮文本
+          toggleButton.textContent = '启用代理';
+          toggleButton.className = 'btn-success';
+          
+          // 更新状态指示器
+          updateStatusIndicator(false);
+        }
+      }
+    });
+  }
+  
+  // 加载白名单列表
+  function loadWhitelist() {
+    chrome.runtime.sendMessage(
+      { action: 'getWhitelist' },
+      function(response) {
+        // 清空现有选项
+        whitelistItemsSelect.innerHTML = '';
+        
+        // 添加白名单域名到选择框
+        if (response && response.whitelist && response.whitelist.length > 0) {
+          response.whitelist.forEach(function(domain) {
+            const option = document.createElement('option');
+            option.value = domain;
+            option.textContent = domain;
+            whitelistItemsSelect.appendChild(option);
+          });
+        } else {
+          // 如果白名单为空，显示提示信息
+          const option = document.createElement('option');
+          option.disabled = true;
+          option.textContent = '白名单为空';
+          whitelistItemsSelect.appendChild(option);
+        }
+      }
+    );
+  }
+  
+  // 更新状态指示器
+  function updateStatusIndicator(isEnabled) {
+    if (!statusIndicator) return;
+    
+    if (isEnabled) {
+      statusIndicator.textContent = '代理已启用';
+      statusIndicator.className = 'status-enabled';
+    } else {
+      statusIndicator.textContent = '代理已禁用';
+      statusIndicator.className = 'status-disabled';
+    }
+  }
+  
+  // 批量添加白名单域名
+  batchAddWhitelistButton.addEventListener('click', function() {
+    const batchText = batchWhitelistInput.value.trim();
+    if (!batchText) {
+      showMessage('请输入要批量添加的域名', 'warning');
+      return;
+    }
+    
+    // 按行分割域名
+    const domains = batchText.split('\n').map(d => d.trim()).filter(d => d);
+    
+    if (domains.length === 0) {
+      showMessage('未找到有效的域名', 'warning');
+      return;
+    }
+    
+    // 获取现有白名单
+    chrome.runtime.sendMessage(
+      { action: 'getWhitelist' },
+      function(response) {
+        if (response && response.whitelist) {
+          const existingWhitelist = response.whitelist;
+          const newDomains = [];
+          const duplicateDomains = [];
+          
+          // 检查每个域名是否已存在
+          domains.forEach(domain => {
+            if (existingWhitelist.includes(domain)) {
+              duplicateDomains.push(domain);
+            } else {
+              newDomains.push(domain);
+            }
+          });
+          
+          if (newDomains.length === 0) {
+            showMessage('所有域名已存在于白名单中', 'warning');
+            return;
+          }
+          
+          // 添加新域名
+          chrome.runtime.sendMessage(
+            { action: 'batchAddToWhitelist', domains: newDomains },
+            function(response) {
+              if (response && response.success) {
+                // 清空输入框
+                batchWhitelistInput.value = '';
+                
+                // 重新加载白名单
+                loadWhitelist();
+                
+                // 显示结果
+                let message = `成功添加 ${newDomains.length} 个域名`;
+                if (duplicateDomains.length > 0) {
+                  message += `，${duplicateDomains.length} 个域名已存在`;
+                }
+                showMessage(message, 'success');
+              } else {
+                showMessage('批量添加失败', 'error');
+              }
+            }
+          );
+        }
+      }
+    );
+  });
+  
+  // 清空白名单
+  clearWhitelistButton.addEventListener('click', function() {
+    if (confirm('确定要清空所有白名单域名吗？此操作不可撤销。')) {
+      chrome.runtime.sendMessage(
+        { action: 'clearWhitelist' },
+        function(response) {
+          if (response && response.success) {
+            loadWhitelist();
+            showMessage('白名单已清空', 'success');
+          } else {
+            showMessage('清空白名单失败', 'error');
+          }
+        }
+      );
+    }
+  });
+  
+  // 检查当前代理状态
+  chrome.runtime.sendMessage({action: 'getProxyState'}, function(response) {
+    if (response) {
+      updateStatusIndicator(response.isEnabled);
+    }
+  });
 });
+
+// 添加显示消息的函数
+function showMessage(message, type = 'error') {
+  const container = document.getElementById('message-container');
+  container.textContent = message;
+  container.className = `message-container message-${type} message-show`;
+  
+  // 1秒后自动隐藏
+  setTimeout(() => {
+    container.className = 'message-container';
+  }, 1000);
+}
